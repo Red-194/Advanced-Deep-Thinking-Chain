@@ -2,6 +2,18 @@
 
 An intelligent reasoning system that combines LangChain with HuggingFace transformers to create a sophisticated multi-stage thinking process. This project implements a structured approach to complex problem-solving through parallel processing and deep analysis.
 
+This project is designed with beginners in mind—whether you're just starting with generative AI or looking for a collaborative way to grow your skills. It's a great opportunity to:
+
+Learn and contribute to a real-world project
+
+Help shape a tool that has the potential to become production-ready
+
+Collaborate with others in the AI/ML community
+
+Everyone is welcome to contribute, regardless of experience level. If you're passionate about AI and open source, we'd love to have you onboard!
+
+🌱 Let's grow this project together—your contributions can make a real impact!
+
 ## Features ✨
 
 - **Multi-Stage Reasoning**: Sequential analysis through research, critique, and creative synthesis
