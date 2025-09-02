@@ -18,3 +18,6 @@ class ModelInit(BaseModel):
     temperature: float = 0.7
     streaming: bool = True
     custom_model: Optional[str] = None
+    
+class ThinkRequest(BaseModel):
+    prompt: str

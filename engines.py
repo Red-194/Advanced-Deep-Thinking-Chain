@@ -28,7 +28,7 @@ class EngineWrapper:
         self.config = {
             "model_name": None,
             "temperature": 0.7,
-            "max_new_tokens": 1024,
+            "max_new_tokens": 256,
             "streaming": True,
             "use_gpu": True,
             "quantize": True
@@ -120,8 +120,8 @@ class AdvancedDeepThinkingChain:
             "text-generation",
             model=model,
             tokenizer=self.tokenizer,
-            max_length=self.engine.max_new_tokens,
             temperature=self.engine.temperature,
+            max_new_tokens=self.engine.max_new_tokens,
             do_sample=True,
             top_p=0.95,
             repetition_penalty=1.15,
@@ -134,7 +134,7 @@ class AdvancedDeepThinkingChain:
             "pipeline": self.pipe,
             "model_kwargs": {
                 "temperature": self.engine.temperature,
-                "max_length": self.engine.max_new_tokens
+                "max_new_tokens": self.engine.max_new_tokens
             }
         }
         
@@ -212,13 +212,13 @@ class AdvancedDeepThinkingChain:
         
         # Sequential steps
         analysis = await self._run_chain_async(self.analysis_chain, {"question": question})
-        stages.append(ThoughtStage("analysis", analysis))
+        stages.append(ThoughtStage(name="analysis", content=analysis))
         
         research = await self._run_chain_async(self.research_chain, {
             "question": question,
             "analysis": analysis
         })
-        stages.append(ThoughtStage("research", research))
+        stages.append(ThoughtStage(name="research", content=research))
         
         # Parallel steps for critique and creative
         critique_task = self._run_chain_async(self.critique_chain, {
@@ -233,7 +233,7 @@ class AdvancedDeepThinkingChain:
         })
         
         critique, creative = await asyncio.gather(critique_task, creative_task)
-        stages.extend([ThoughtStage("critique", critique), ThoughtStage("creative", creative)])
+        stages.extend([ThoughtStage(name="critique", content=critique), ThoughtStage(name="creative", content=creative)])
         
         # Final synthesis
         synthesis = await self._run_chain_async(self.synthesis_chain, {
@@ -243,14 +243,15 @@ class AdvancedDeepThinkingChain:
             "critique": critique,
             "creative": creative
         })
-        stages.append(ThoughtStage("synthesis", synthesis))
+        stages.append(ThoughtStage(name="synthesis", content=synthesis))
         
-        return ThoughtProcess(stages)
+        return ThoughtProcess(stages=stages)
     
     async def quick_think(self, question: str) -> str:
-        """Quick response"""
         prompt = f"Answer thoughtfully:\n\nQuestion: {question}\n\nAnswer:"
-        return await self._run_chain_async(self.llm, prompt)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.llm(prompt))
+
     
     async def follow_up(self, question: str) -> str:
         """Follow-up with conversation context"""

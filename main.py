@@ -1,13 +1,14 @@
+from typing import List, Dict
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
 import torch, gc
 from engines import AdvancedDeepThinkingChain, EngineWrapper
-from models import ModelInit
+from models import ModelInit, ThoughtProcess, ThinkRequest
 
 app = FastAPI()
 
 engine: EngineWrapper | None = None
 thinker: AdvancedDeepThinkingChain | None = None
+history: List[Dict] = []
 
 models = {
     "1": ("microsoft/phi-2", "2.7B parameters - Balanced"),
@@ -21,14 +22,17 @@ models = {
 async def main():
     return {'message' : 'Success'}
 
-engine = EngineWrapper()
+@app.get('/models')
+async def get_models():
+    return models
 
-@app.post("/initialize-model")
+@app.post("/initialize")
 async def initialize_model(request: ModelInit):
     global engine, thinker
     
     await clear_model()
     
+    engine = EngineWrapper()
     model_info = models.get(str(request.model_number), models["1"])
     if model_info[0] == "custom":
         if not request.custom_model or not request.custom_model.strip():
@@ -56,7 +60,7 @@ async def initialize_model(request: ModelInit):
         "config": engine.config
     }
     
-@app.post("/clear-model")
+@app.post("/clear")
 async def clear_model():
     global engine, thinker
 
@@ -75,3 +79,33 @@ async def clear_model():
     torch.cuda.empty_cache()
 
     return {"status": "cleared"}
+
+@app.post("/think/deep", response_model=ThoughtProcess)
+async def think_deep(request: ThinkRequest):
+    if thinker is None:
+        raise HTTPException(status_code=400, detail="Model not initialized")
+    return await thinker.think_deeply(request.prompt)
+
+    
+@app.post("/think/quick")
+async def think_quick(request: ThinkRequest):
+    global thinker, history
+
+    if thinker is None:
+        raise HTTPException(status_code=400, detail="Model not initialized")
+
+    try:
+        response = await thinker.quick_think(request.prompt)
+        history.append({
+            "mode": "quick",
+            "prompt": request.prompt,
+            "response": response
+        })
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.get("/history")
+async def get_history():
+    return {"history": history}
