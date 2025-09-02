@@ -21,8 +21,8 @@ from transformers import (
     TextStreamer
 )
 
+# Engine wrapper class with lazy loading—engine initialization is deferred until needed
 class EngineWrapper:
-    
     def __init__(self):
         self.model = None
         self.config = {
@@ -48,6 +48,30 @@ class EngineWrapper:
             import gc
             gc.collect()
 
+    @property
+    def model_name(self):
+        return self.config.get("model_name")
+
+    @property
+    def temperature(self):
+        return self.config.get("temperature")
+
+    @property
+    def streaming(self):
+        return self.config.get("streaming")
+
+    @property
+    def use_gpu(self):
+        return self.config.get("use_gpu")
+
+    @property
+    def quantize(self):
+        return self.config.get("quantize")
+
+    @property
+    def max_new_tokens(self):
+        return self.config.get("max_new_tokens")
+
 
 class AdvancedDeepThinkingChain:
     """Enhanced deep thinking system with parallel processing"""
@@ -55,9 +79,8 @@ class AdvancedDeepThinkingChain:
     def __init__(self, engine: EngineWrapper):
         """Initialize with configuration"""
         self.engine = engine
-        self.device = "cuda" if engine.use_gpu and torch.cuda.is_available() else "cpu"
-        
-        print(f"Initializing with {engine.model_name} on {self.device}...")
+        self.device = "cuda" if engine.config.get("use_gpu") and torch.cuda.is_available() else "cpu"
+        print(f"Initializing with {engine.config.get('model_name')} on {self.device}...")
         
         self._load_model()
         self._create_llm()
@@ -68,7 +91,7 @@ class AdvancedDeepThinkingChain:
     def _load_model(self):
         """Load model with optimization"""
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.config.model_name,
+            self.engine.model_name,
             trust_remote_code=True
         )
         
@@ -80,7 +103,7 @@ class AdvancedDeepThinkingChain:
             "device_map": "auto" if self.device == "cuda" else None
         }
         
-        if self.config.quantize and self.device == "cuda":
+        if self.engine.quantize and self.device == "cuda":
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
@@ -91,18 +114,18 @@ class AdvancedDeepThinkingChain:
         else:
             model_kwargs["torch_dtype"] = torch.float16 if self.device == "cuda" else torch.float32
         
-        model = AutoModelForCausalLM.from_pretrained(self.config.model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(self.engine.model_name, **model_kwargs)
         
         self.pipe = pipeline(
             "text-generation",
             model=model,
             tokenizer=self.tokenizer,
-            max_length=self.config.max_length,
-            temperature=self.config.temperature,
+            max_length=self.engine.max_new_tokens,
+            temperature=self.engine.temperature,
             do_sample=True,
             top_p=0.95,
             repetition_penalty=1.15,
-            streamer=TextStreamer(self.tokenizer, skip_prompt=True) if self.config.streaming else None
+            streamer=TextStreamer(self.tokenizer, skip_prompt=True) if self.engine.streaming else None
         )
     
     def _create_llm(self):
@@ -110,14 +133,14 @@ class AdvancedDeepThinkingChain:
         llm_kwargs = {
             "pipeline": self.pipe,
             "model_kwargs": {
-                "temperature": self.config.temperature,
-                "max_length": self.config.max_length
+                "temperature": self.engine.temperature,
+                "max_length": self.engine.max_new_tokens
             }
         }
         
         self.llm = HuggingFacePipeline(**llm_kwargs)
         
-        if self.config.streaming:
+        if self.engine.streaming:
             llm_kwargs["callbacks"] = [StreamingStdOutCallbackHandler()]
             self.streaming_llm = HuggingFacePipeline(**llm_kwargs)
     
@@ -157,7 +180,7 @@ class AdvancedDeepThinkingChain:
             template="""Synthesize:\n\nQuestion: {question}\nAnalysis: {analysis}\nResearch: {research}\nCritique: {critique}\nCreative: {creative}\n\nAnswer:\n1. Addresses question\n2. Integrates insights\n3. Acknowledges nuance\n4. Gives examples\n5. Offers implications\n\nSynthesis:"""
         )
         self.synthesis_chain = LLMChain(
-            llm=self.streaming_llm if self.config.streaming else self.llm,
+            llm=self.streaming_llm if self.engine.streaming else self.llm,
             prompt=synthesis_prompt,
             output_key="synthesis"
         )

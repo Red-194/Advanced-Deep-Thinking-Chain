@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 
 class ThoughtStage(BaseModel):
@@ -17,3 +17,4 @@ class ModelInit(BaseModel):
     model_number: int = 1
     temperature: float = 0.7
     streaming: bool = True
+    custom_model: Optional[str] = None

@@ -1,10 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 import torch, gc
 from engines import AdvancedDeepThinkingChain, EngineWrapper
 from models import ModelInit
 
 app = FastAPI()
+
+engine: EngineWrapper | None = None
+thinker: AdvancedDeepThinkingChain | None = None
 
 models = {
     "1": ("microsoft/phi-2", "2.7B parameters - Balanced"),
@@ -16,10 +19,59 @@ models = {
 
 @app.get('/')
 async def main():
-    return RedirectResponse(url='http://127.0.0.1:8000/docs')
+    return {'message' : 'Success'}
 
 engine = EngineWrapper()
 
-@app.post('/initialize-model')
-async def initialize_model(init: ModelInit):
-    pass
+@app.post("/initialize-model")
+async def initialize_model(request: ModelInit):
+    global engine, thinker
+    
+    await clear_model()
+    
+    model_info = models.get(str(request.model_number), models["1"])
+    if model_info[0] == "custom":
+        if not request.custom_model or not request.custom_model.strip():
+            raise HTTPException(status_code=400, detail="custom_model is required for model_number 5")
+        model_name = request.custom_model.strip()
+    else:
+        model_name = model_info[0]
+
+    if engine is None:
+        engine = EngineWrapper()
+
+    engine.config.update({
+        "model_name": model_name,
+        "temperature": request.temperature,
+        "streaming": request.streaming
+    })
+
+    engine.load_model(model_name)
+    thinker = AdvancedDeepThinkingChain(engine)
+
+    return {
+        "status": "initialized",
+        "model_name": model_name,
+        "description": model_info[1],
+        "config": engine.config
+    }
+    
+@app.post("/clear-model")
+async def clear_model():
+    global engine, thinker
+
+    if engine is None and thinker is None:
+        return {"status": "nothing to clear"}
+
+    if thinker is not None:
+        del thinker
+        thinker = None
+
+    if engine is not None:
+        engine.unload_model()
+        engine = None
+
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    return {"status": "cleared"}
