@@ -6,7 +6,7 @@ from models import ModelInit, ThoughtProcess, ThinkRequest
 
 app = FastAPI()
 
-engine: Config | None = None
+config: Config | None = None
 thinker: AdvancedDeepThinkingChain | None = None
 history: List[Dict] = []
 
@@ -18,14 +18,17 @@ models = {
     "5": ("custom", "Enter your own model")
 }
 
+# Root page to check if service is accessible
 @app.get('/')
 async def main():
     return {'message' : 'Success'}
 
+# Lists out the model mappings
 @app.get('/models')
 async def get_models():
     return models
 
+# Initialize the model with hyperparameters for temperature, streaming as well as set on a model number or custom model
 @app.post("/initialize")
 async def initialize_model(request: ModelInit):
     global thinker, config
@@ -48,34 +51,36 @@ async def initialize_model(request: ModelInit):
         "description": model_info[1],
         "config": config.config
     }
-    
+
+# Unload the model from the memory
 @app.post("/clear")
 async def clear_model():
-    global engine, thinker
+    global config, thinker
 
-    if engine is None and thinker is None:
+    if config is None and thinker is None:
         return {"status": "nothing to clear"}
 
     if thinker is not None:
         del thinker
         thinker = None
 
-    if engine is not None:
-        engine.unload_model()
-        engine = None
+    if config is not None:
+        config = None
 
     gc.collect()
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     return {"status": "cleared"}
 
+# Runs the deep thinking chain
 @app.post("/think/deep", response_model=ThoughtProcess)
 async def think_deep(request: ThinkRequest):
     if thinker is None:
         raise HTTPException(status_code=400, detail="Model not initialized")
     return await thinker.think_deeply(request.prompt)
 
-    
+# Runs the quick response
 @app.post("/think/quick")
 async def think_quick(request: ThinkRequest):
     global thinker, history
@@ -93,8 +98,8 @@ async def think_quick(request: ThinkRequest):
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
+# Displays the history of calls
 @app.get("/history")
 async def get_history():
     return {"history": history}
