@@ -1,12 +1,12 @@
 from typing import List, Dict
 from fastapi import FastAPI, HTTPException
 import torch, gc
-from engines import AdvancedDeepThinkingChain, EngineWrapper
+from engines import AdvancedDeepThinkingChain, Config
 from models import ModelInit, ThoughtProcess, ThinkRequest
 
 app = FastAPI()
 
-engine: EngineWrapper | None = None
+engine: Config | None = None
 thinker: AdvancedDeepThinkingChain | None = None
 history: List[Dict] = []
 
@@ -28,36 +28,25 @@ async def get_models():
 
 @app.post("/initialize")
 async def initialize_model(request: ModelInit):
-    global engine, thinker
-    
-    await clear_model()
-    
-    engine = EngineWrapper()
+    global thinker, config
+
     model_info = models.get(str(request.model_number), models["1"])
-    if model_info[0] == "custom":
-        if not request.custom_model or not request.custom_model.strip():
-            raise HTTPException(status_code=400, detail="custom_model is required for model_number 5")
-        model_name = request.custom_model.strip()
-    else:
-        model_name = model_info[0]
+    model_name = request.custom_model.strip() if model_info[0] == "custom" else model_info[0]
 
-    if engine is None:
-        engine = EngineWrapper()
+    await clear_model()
 
-    engine.config.update({
-        "model_name": model_name,
-        "temperature": request.temperature,
-        "streaming": request.streaming
-    })
-
-    engine.load_model(model_name)
-    thinker = AdvancedDeepThinkingChain(engine)
+    config = Config(
+        model_name=model_name,
+        temperature=request.temperature,
+        streaming=request.streaming
+    )
+    thinker = AdvancedDeepThinkingChain(config)
 
     return {
         "status": "initialized",
         "model_name": model_name,
         "description": model_info[1],
-        "config": engine.config
+        "config": config.config
     }
     
 @app.post("/clear")
